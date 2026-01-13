@@ -3,8 +3,16 @@ const itemInput = document.getElementById('item-input')
 const itemList = document.getElementById('item-list')
 const clearAllBtn = document.getElementById('clear')
 const itemFilter = document.getElementById('filter')
+const formBtn = itemForm.querySelector('button')
+let isEditMode = false
 
-function addItem(e) {
+function displayItems() {
+	const itemsFromStorage = getItemsFromStorage()
+	itemsFromStorage.forEach(item => addItemtoDOM(item))
+	checkUI()
+}
+
+function onAddItemSubmit(e) {
 	e.preventDefault()
 
 	const newItem = itemInput.value.trim()
@@ -15,18 +23,40 @@ function addItem(e) {
 		return
 	}
 
+	if (isEditMode) {
+		const itemToEdit = itemList.querySelector('.edit-mode')
+
+		removeItemFromStorage(itemToEdit.textContent)
+		itemToEdit.classList.remove('edit-mode')
+		itemToEdit.remove()
+		isEditMode = false
+	} else {
+		if (checkIfItemExists(newItem)) {
+			alert('That item already exists!')
+			return
+		}
+	}
+
+	// Create item DOM element
+	addItemtoDOM(newItem)
+
+	// Add item to local storage
+	addItemToStorage(newItem)
+
+	checkUI()
+
+	itemInput.value = ''
+}
+
+function addItemtoDOM(item) {
 	// Create list item
 	const li = document.createElement('li')
-	li.appendChild(document.createTextNode(newItem))
+	li.appendChild(document.createTextNode(item))
 
 	const button = createButton('remove-item btn-link text-red')
 	li.appendChild(button)
 
 	itemList.appendChild(li)
-
-	checkUI()
-
-	itemInput.value = ''
 }
 
 function createButton(classes) {
@@ -45,6 +75,37 @@ function createIcon(classes) {
 	return icon
 }
 
+function addItemToStorage(item) {
+	let itemsFromStorage = getItemsFromStorage()
+
+	// Add new item to array
+	itemsFromStorage.push(item)
+
+	// Convert to JSON string
+	localStorage.setItem('items', JSON.stringify(itemsFromStorage))
+}
+
+function getItemsFromStorage() {
+	let itemsFromStorage
+	if (localStorage.getItem('items') === null) {
+		itemsFromStorage = []
+	} else {
+		itemsFromStorage = JSON.parse(localStorage.getItem('items'))
+	}
+
+	return itemsFromStorage
+}
+
+function removeItemFromStorage(item) {
+	let itemsFromStorage = getItemsFromStorage()
+
+	// Filter out item to be removed
+	itemsFromStorage = itemsFromStorage.filter(i => i !== item)
+
+	// Re-set to localStorage
+	localStorage.setItem('items', JSON.stringify(itemsFromStorage))
+}
+
 function clearAll() {
 	const items = itemList.querySelectorAll('li')
 	if (items.length === 0) {
@@ -52,16 +113,61 @@ function clearAll() {
 	}
 
 	items.forEach(item => item.remove())
+
+	localStorage.removeItem('items')
 	checkUI()
 }
 
-function removeItem(e) {
+function onClickItem(e) {
 	if (e.target.parentElement.classList.contains('remove-item')) {
-		if (confirm('Are you sure?')) {
-			e.target.parentElement.parentElement.remove()
-			checkUI()
-		}
+		removeItem(e.target.parentElement.parentElement)
+	} else {
+		setItemToEdit(e.target)
 	}
+}
+
+function checkIfItemExists(item) {
+	const itemsFromStorage = getItemsFromStorage()
+
+	return itemsFromStorage.includes(item)
+}
+
+function setItemToEdit(item) {
+	isEditMode = true
+
+	itemList.querySelectorAll('li').forEach(i => i.classList.remove('edit-mode'))
+
+	item.classList.add('edit-mode')
+	formBtn.innerHTML = '<i class="fa-solid fa-pen"></i> Update Item'
+	formBtn.style.backgroundColor = '#228B22'
+	itemInput.value = item.textContent
+}
+
+function removeItem(item) {
+	if (confirm('Are you sure?')) {
+		// Remove item from DOM
+		item.remove()
+
+		// Remove item from storage
+		removeItemFromStorage(item.textContent)
+
+		checkUI()
+	}
+}
+
+function filterItems(e) {
+	const items = itemList.querySelectorAll('li')
+	const text = e.target.value.toLowerCase().trim()
+
+	items.forEach(item => {
+		const itemName = item.firstChild.textContent.toLowerCase()
+
+		if (itemName.indexOf(text) != -1) {
+			item.style.display = 'flex'
+		} else {
+			item.style.display = 'none'
+		}
+	})
 }
 
 function checkUI() {
@@ -73,12 +179,26 @@ function checkUI() {
 		clearAllBtn.style.display = 'block'
 		itemFilter.style.display = 'block'
 	}
+
+	formBtn.innerHTML = '<i class="fa-solid fa-plus"></i> Add Item'
+	formBtn.style.backgroundColor = '#333'
+
+	isEditMode = false
 }
 
-// Event Listners
-itemForm.addEventListener('submit', addItem)
-itemList.addEventListener('click', removeItem)
-clearAllBtn.addEventListener('click', clearAll)
+// Initialize app
+function init() {
+	itemInput.value = ''
 
-// Run
-checkUI()
+	// Event Listners
+	itemForm.addEventListener('submit', onAddItemSubmit)
+	itemList.addEventListener('click', onClickItem)
+	clearAllBtn.addEventListener('click', clearAll)
+	itemFilter.addEventListener('input', filterItems)
+	document.addEventListener('DOMContentLoaded', displayItems)
+
+	// Run
+	checkUI()
+}
+
+init()
